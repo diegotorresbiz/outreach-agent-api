@@ -1,4 +1,3 @@
-
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -142,29 +141,51 @@ class DriverManager:
             if os.environ.get("RAILWAY_ENVIRONMENT") or os.environ.get("RENDER") or os.environ.get("HEROKU"):
                 print("🚂 Production environment detected")
                 
-                # Essential headless options for production
-                chrome_options.add_argument("--headless=new")  # Use new headless mode
+                # Core stability options for Railway
+                chrome_options.add_argument("--headless=new")
                 chrome_options.add_argument("--no-sandbox")
                 chrome_options.add_argument("--disable-dev-shm-usage")
                 chrome_options.add_argument("--disable-gpu")
                 chrome_options.add_argument("--disable-software-rasterizer")
+                
+                # Memory and resource management
+                chrome_options.add_argument("--memory-pressure-off")
                 chrome_options.add_argument("--disable-background-timer-throttling")
                 chrome_options.add_argument("--disable-backgrounding-occluded-windows")
                 chrome_options.add_argument("--disable-renderer-backgrounding")
-                chrome_options.add_argument("--disable-features=TranslateUI")
+                chrome_options.add_argument("--disable-features=TranslateUI,VizDisplayCompositor")
                 chrome_options.add_argument("--disable-ipc-flooding-protection")
-                chrome_options.add_argument("--window-size=1920,1080")
+                
+                # Process management for stability
                 chrome_options.add_argument("--single-process")
                 chrome_options.add_argument("--no-zygote")
+                chrome_options.add_argument("--disable-web-security")
+                chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+                
+                # Reduce resource usage
                 chrome_options.add_argument("--disable-extensions")
                 chrome_options.add_argument("--disable-plugins")
                 chrome_options.add_argument("--disable-images")
                 chrome_options.add_argument("--disable-javascript")
-                chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                chrome_options.add_argument("--disable-default-apps")
+                chrome_options.add_argument("--disable-sync")
                 
-                # Memory optimization
-                chrome_options.add_argument("--memory-pressure-off")
-                chrome_options.add_argument("--max_old_space_size=4096")
+                # Network and security
+                chrome_options.add_argument("--disable-background-networking")
+                chrome_options.add_argument("--disable-background-mode")
+                chrome_options.add_argument("--disable-client-side-phishing-detection")
+                chrome_options.add_argument("--disable-component-update")
+                
+                # Window and display
+                chrome_options.add_argument("--window-size=1280,720")
+                chrome_options.add_argument("--virtual-time-budget=30000")
+                
+                # User agent
+                chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                
+                # Logging
+                chrome_options.add_argument("--enable-logging")
+                chrome_options.add_argument("--log-level=0")
                 
                 if not chrome_binary:
                     # Try alternative Chrome detection methods with nixpacks paths
@@ -249,8 +270,10 @@ class DriverManager:
             
             print("🔧 Initializing WebDriver...")
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
-            self.driver.set_page_load_timeout(30)
-            self.driver.implicitly_wait(10)
+            
+            # Increase timeouts for stability
+            self.driver.set_page_load_timeout(60)
+            self.driver.implicitly_wait(20)
             print("✅ Chrome WebDriver initialized successfully")
             
             # Test the driver
@@ -276,6 +299,10 @@ class DriverManager:
                 print("\n🔍 TIMEOUT ISSUE:")
                 print("   Chrome may be taking too long to start")
                 print("   Consider increasing timeout or checking system resources")
+            elif "disconnected" in str(e).lower() or "renderer" in str(e).lower():
+                print("\n🔍 CHROME CRASH ISSUE:")
+                print("   Chrome renderer crashed - likely due to resource constraints")
+                print("   This is common in containerized environments")
             
             raise Exception(f"WebDriver initialization failed: {str(e)}")
     
