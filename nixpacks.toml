@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["...", "google-chrome", "chromedriver"]
+
+[phases.install]
+dependsOn = ["setup"]
+
+[phases.build]
+dependsOn = ["install"]
+
+[start]
+cmd = "python main.py"
