@@ -22,8 +22,14 @@ class DriverManager:
         is_railway = os.environ.get("RAILWAY_ENVIRONMENT")
         print(f"   Railway Environment: {is_railway}")
         
-        # Check Chrome binary locations
+        # Check Chrome binary locations - including Nixpacks paths
         chrome_paths = [
+            # Nixpacks paths (Railway with nixpacks.toml)
+            "/nix/store/*/bin/google-chrome",
+            "/nix/store/*/bin/google-chrome-stable",
+            "/nix/store/*/bin/chromium",
+            "/nix/store/*/bin/chromium-browser",
+            # Traditional paths
             "/usr/bin/google-chrome",
             "/usr/bin/google-chrome-stable", 
             "/usr/bin/chromium-browser",
@@ -33,16 +39,31 @@ class DriverManager:
         ]
         
         chrome_found = None
-        for path in chrome_paths:
-            if os.path.exists(path):
-                print(f"   ✅ Chrome found at: {path}")
-                chrome_found = path
-                break
+        for path_pattern in chrome_paths:
+            # Handle glob patterns for nixpacks
+            if "*" in path_pattern:
+                matching_paths = glob.glob(path_pattern)
+                for path in matching_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        print(f"   ✅ Chrome found at: {path}")
+                        chrome_found = path
+                        break
             else:
-                print(f"   ❌ Chrome not found at: {path}")
+                if os.path.exists(path_pattern):
+                    print(f"   ✅ Chrome found at: {path_pattern}")
+                    chrome_found = path_pattern
+                    break
+                else:
+                    print(f"   ❌ Chrome not found at: {path_pattern}")
+            
+            if chrome_found:
+                break
         
-        # Check ChromeDriver locations
+        # Check ChromeDriver locations - including Nixpacks paths
         driver_paths = [
+            # Nixpacks paths
+            "/nix/store/*/bin/chromedriver",
+            # Traditional paths
             "/usr/bin/chromedriver",
             "/usr/local/bin/chromedriver",
             "/opt/homebrew/bin/chromedriver",
@@ -50,24 +71,36 @@ class DriverManager:
         ]
         
         driver_found = None
-        for path in driver_paths:
-            if os.path.exists(path):
-                print(f"   ✅ ChromeDriver found at: {path}")
-                # Check if it's executable
-                if os.access(path, os.X_OK):
-                    print(f"   ✅ ChromeDriver is executable")
-                    driver_found = path
-                else:
-                    print(f"   ⚠️  ChromeDriver exists but not executable")
-                    try:
-                        os.chmod(path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
-                        print(f"   ✅ Made ChromeDriver executable")
+        for path_pattern in driver_paths:
+            # Handle glob patterns for nixpacks
+            if "*" in path_pattern:
+                matching_paths = glob.glob(path_pattern)
+                for path in matching_paths:
+                    if os.path.exists(path) and os.access(path, os.X_OK):
+                        print(f"   ✅ ChromeDriver found at: {path}")
                         driver_found = path
-                    except Exception as e:
-                        print(f"   ❌ Could not make executable: {e}")
-                break
+                        break
             else:
-                print(f"   ❌ ChromeDriver not found at: {path}")
+                if os.path.exists(path_pattern):
+                    print(f"   ✅ ChromeDriver found at: {path_pattern}")
+                    # Check if it's executable
+                    if os.access(path_pattern, os.X_OK):
+                        print(f"   ✅ ChromeDriver is executable")
+                        driver_found = path_pattern
+                    else:
+                        print(f"   ⚠️  ChromeDriver exists but not executable")
+                        try:
+                            os.chmod(path_pattern, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+                            print(f"   ✅ Made ChromeDriver executable")
+                            driver_found = path_pattern
+                        except Exception as e:
+                            print(f"   ❌ Could not make executable: {e}")
+                    break
+                else:
+                    print(f"   ❌ ChromeDriver not found at: {path_pattern}")
+            
+            if driver_found:
+                break
         
         # Try to get Chrome version
         if chrome_found:
@@ -134,25 +167,39 @@ class DriverManager:
                 chrome_options.add_argument("--max_old_space_size=4096")
                 
                 if not chrome_binary:
-                    # Try alternative Chrome detection methods
-                    alternative_paths = [
+                    # Try alternative Chrome detection methods with nixpacks paths
+                    alternative_patterns = [
+                        "/nix/store/*/bin/google-chrome-stable",
+                        "/nix/store/*/bin/chromium-browser", 
+                        "/nix/store/*/bin/chromium",
                         "/usr/bin/google-chrome-stable",
-                        "/usr/bin/chromium-browser", 
+                        "/usr/bin/chromium-browser",
                         "/usr/bin/chromium",
                         "/snap/bin/chromium"
                     ]
                     
-                    for alt_path in alternative_paths:
-                        if os.path.exists(alt_path):
-                            chrome_binary = alt_path
-                            print(f"   🔄 Using alternative Chrome: {chrome_binary}")
+                    for alt_pattern in alternative_patterns:
+                        if "*" in alt_pattern:
+                            matching_paths = glob.glob(alt_pattern)
+                            for alt_path in matching_paths:
+                                if os.path.exists(alt_path) and os.access(alt_path, os.X_OK):
+                                    chrome_binary = alt_path
+                                    print(f"   🔄 Using alternative Chrome: {chrome_binary}")
+                                    break
+                        else:
+                            if os.path.exists(alt_pattern):
+                                chrome_binary = alt_pattern
+                                print(f"   🔄 Using alternative Chrome: {chrome_binary}")
+                                break
+                        
+                        if chrome_binary:
                             break
                 
                 if not chrome_binary:
-                    raise Exception("❌ Chrome binary not found. Install with: apt-get update && apt-get install -y google-chrome-stable")
+                    raise Exception("❌ Chrome binary not found. Make sure nixpacks.toml includes 'google-chrome' in nixPkgs")
                 
                 if not driver_path:
-                    raise Exception("❌ ChromeDriver not found. Install with: apt-get install -y chromium-chromedriver")
+                    raise Exception("❌ ChromeDriver not found. Make sure nixpacks.toml includes 'chromedriver' in nixPkgs")
                 
                 chrome_options.binary_location = chrome_binary
                 service = Service(driver_path)
@@ -219,11 +266,11 @@ class DriverManager:
             # Enhanced error diagnostics
             if "Chrome binary" in str(e) or "chrome" in str(e).lower():
                 print("\n🔍 CHROME INSTALLATION ISSUE:")
-                print("   Try: apt-get update && apt-get install -y google-chrome-stable")
+                print("   Try: Make sure nixpacks.toml includes 'google-chrome' in nixPkgs")
                 print("   Or: apt-get install -y chromium-browser")
             elif "chromedriver" in str(e).lower():
                 print("\n🔍 CHROMEDRIVER ISSUE:")
-                print("   Try: apt-get install -y chromium-chromedriver")
+                print("   Try: Make sure nixpacks.toml includes 'chromedriver' in nixPkgs")
                 print("   Check version compatibility between Chrome and ChromeDriver")
             elif "timeout" in str(e).lower():
                 print("\n🔍 TIMEOUT ISSUE:")
